@@ -6,10 +6,15 @@ This project consists of 7 different files: 6 of which contain data and one of w
 6 Data Files:
 
 SAGDP1__ALL_AREAS_1997_2019 2.csv -> Contains GDP Data
+
 gov_elec_1999.csv -> Contains election data from 1997 to 1999
+
 gov_elec_2009.csv -> Contains election data from 2000 to 2009
+
 gov_elections_2019.csv -> Contains election data from 2010 to 2019
+
 la.data.3.AllStatesS.txt -> Contains state unemployment rates
+
 la.state_region_division.txt -> Contains a matching of states to numbers
 
 1 Cleaning File:
