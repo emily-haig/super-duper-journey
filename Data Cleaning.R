@@ -33,14 +33,22 @@ state_unemployment$state_num<- substr(state_unemployment$series_id, 6, 7)
 #add state name
 state_unemployment$state<- substr(state_unemployment$series_id, 6, 7)
 state_unemployment$state <- fips(state_unemployment$state, to="Name")
-#get correct unemployment rate and filter y data and october
+#get correct unemployment rate
 state_unemployment$is_3<- substr(state_unemployment$series_id, 20, 20)
 state_unemployment <- state_unemployment %>% filter(is_3 == 3)
-state_unemployment <- state_unemployment %>% filter(period == "M10")
 colnames(state_unemployment)[colnames(state_unemployment) == "value"] <- "unemployment"
 #making unemployment a numeric instead of factor
 state_unemployment$unemployment <- levels(state_unemployment$unemployment)[state_unemployment$unemployment]
 state_unemployment$unemployment <- as.numeric(state_unemployment$unemployment)
+#filter by data, get change from jan to oct and filter October
+state_unemployment <- state_unemployment %>% filter(period == "M10" | period == "M01")
+state_unemployment <- state_unemployment %>%
+  group_by(state) %>% 
+  arrange(state, year, period, .by_group = TRUE) %>%
+  mutate(change_jan_oct = (unemployment/lag(unemployment) - 1) * 100)
+state_unemployment <- state_unemployment %>% filter(period == "M10")
+
+
 #final = state_unemployment
 
 #cleaning GDP
@@ -79,9 +87,11 @@ mergedData$RepMinusDem <- (mergedData$RepVotesMajorPercent - mergedData$DemVotes
 #run a regression and make table 1
 linearModel1 <- lm(RepMinusDem ~ GDP_percent_change + unemployment + state + year + RepStatus + DemStatus, data = mergedData)
 linearModel2 <- lm(RepMinusDem ~ unemployment + state + year + RepStatus + DemStatus, data = mergedData)
+linearModel3 <- lm(RepMinusDem ~ GDP_percent_change + unemployment + change_jan_oct + state + year + RepStatus + DemStatus, data = mergedData)
+
 #linearModel3 <- lm(RepMinusDem ~ GDP_percent_change + state + year + RepStatus + DemStatus, data = mergedData)
 
-stargazer(linearModel1, linearModel2, omit = c("state", "year"), title="Regression Results",
+stargazer(linearModel1, linearModel2, linearModel3,omit = c("state", "year"), title="Regression Results",
           align=TRUE, no.space=TRUE, dep.var.labels   = "RepMargin")
 
 #make figure 1
@@ -90,8 +100,19 @@ plot(mergedData$year, mergedData$n, main = "Figure 1: Number of Elections per Ye
 lines(mergedData$year, mergedData$n, xlab = "Year", ylab = "Number of Elections")
 axis(1, seq(1996,2019,2),las=2)
 
-#covariate.labels=c("GDP Percent Change","Unemployment Percent",
-#                   "Repulican Status","Democrat Status"),
-#omit.stat=c("LL","ser", "f")
-#linearModel2 <-lm(RepMinusDem ~ GDP_percent_change + unemployment + state + year + RepStatus + DemStatus, data = mergedData)
 
+#run a regression comparing incumbents to challengers
+#make new merged data that only includes when there is an incumbent
+mergedDataInc <- mergedData %>% filter(RepStatus == "Incumbent" | DemStatus == "Incumbent")
+#calc incumbent vote share
+mergedDataInc <- mutate(mergedDataInc, IncVotesDem = ifelse(DemStatus == "Incumbent", DemVotesMajorPercent, 0))
+mergedDataInc <- mutate(mergedDataInc, IncVotesRep = ifelse(RepStatus == "Incumbent", RepVotesMajorPercent, 0))
+mergedDataInc <- mutate(mergedDataInc, ChaVotesDem = ifelse(DemStatus == "Challenger", DemVotesMajorPercent, 0))
+mergedDataInc <- mutate(mergedDataInc, ChaVotesRep = ifelse(RepStatus == "Challenger", RepVotesMajorPercent, 0))
+mergedDataInc$IncMinusCha <- mergedDataInc$IncVotesDem + mergedDataInc$IncVotesRep - mergedDataInc$ChaVotesDem - mergedDataInc$ChaVotesRep
+#run the regression
+linearModelA <- lm(IncMinusCha ~ GDP_percent_change + unemployment + RepStatus + state + year, data = mergedDataInc)
+linearModelB <- lm(IncMinusCha ~ unemployment + state + year + RepStatus, data = mergedDataInc)
+linearModelC <- lm(IncMinusCha ~ GDP_percent_change + unemployment + change_jan_oct + state + year + RepStatus, data = mergedDataInc)
+stargazer(linearModelA, linearModelB, linearModelC,omit = c("state", "year"), title="Regression Results",
+          align=TRUE, no.space=TRUE, dep.var.labels   = "Incumbent Margin")
